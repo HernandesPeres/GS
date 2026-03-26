@@ -116,7 +116,7 @@ Historical datasets, integrating both phenotypic and genotypic information, can 
 ```{r}
 remove(list = ls())
 
-setwd("C:/GitHub_Folders/GeneticTools/")
+# install.packages(c("bWGR", "dplyr", "plotly", "ggplot2"))
 
 library(bWGR)
 library(dplyr)

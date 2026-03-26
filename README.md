@@ -1,1 +1,1 @@
-This repository provides code and data to facilitate genomic selection in a straightforward and accessible way.
+This repository provides code and data to facilitate the understand of genomic selection in a straightforward and accessible way.

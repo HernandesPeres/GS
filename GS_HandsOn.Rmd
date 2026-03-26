@@ -1,0 +1,257 @@
+---
+title: "Introducing GS"
+subtitle: "From theory to practical application"
+authors: 
+    - name: Hernandes Peres (Hernandes.panichi@ufv.br)
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    toc-title: Sections
+    toc-location: left
+    number-sections: false
+    number-depth: 4
+    toc_float: true
+    theme: [zephyr, theme.scss]
+    embed-resources: true
+    self-contained: true
+    anchor-sections: true
+    smooth-scroll: true
+    link-external-newwindow: false
+    code-fold: false
+    code-overflow: wrap
+    code-block-border-left: "#781c1e"
+    code-copy: hover
+    code-summary: "Show/Hide Code"
+    lang: en
+    fig-format: png
+    fig-responsive: true
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    page-layout: article
+    title-block-banner-color: 'white'
+    highlight-style: github
+editor_options: 
+  chunk_output_type: console
+bibliography: library.bib
+---
+
+```{=html}
+<style>
+/* Cor de fundo do banner de título (título principal da página) */
+div.quarto-title-block.default .quarto-title-banner {
+background-color: #a30202 !important;
+text-align: center;
+padding: 20px 0;
+border: none;
+box-shadow: none;
+}
+
+/* Cor e estilo do título principal (texto) */
+div.quarto-title-block.default .quarto-title-banner h1 {
+color: white !important;
+font-size: 2em;
+margin: 0;
+}
+
+/* Logo fixa no cabeçalho */
+.logo-fixed-header {
+position: fixed;
+top: 0;
+left: 20px;
+z-index: 1000;
+padding: 10px;
+}
+
+.logo-fixed-header img {
+max-width: 120px;
+height: auto;
+opacity: 0.95;
+}
+
+</style>
+```
+::: logo-fixed-header
+<img src="C:/GitHub_Folders/UFVLogo.png" alt="Logo fixo no cabeçalho"/>
+:::
+
+------------------------------------------------------------------------
+
+# Genomic selection
+
+Genomic selection (GS) is a strategy used in plant breeding that involves selecting parental individuals, crossing parents, evaluating their progeny's performance, and selecting top candidates to become new inbred cultivar or parents for hybrids cultivars.
+
+It provides breeders an estimate of the plant's potential performance for specific trait before their phenotypes are measured. Thus selection decision can be made **earlier to reduce the cost** and **time of breeding programs.**
+
+Breeder's equation [@Falconer1996]: $$
+\Delta G = \frac{ir\sigma^2_A}{L}
+$$ where:
+
+-   $\Delta G$ is the genetic gain
+-   $i$ is the selection intensity
+-   $r$ is the selection accuracy
+-   $\sigma^2_A$ is the genetic variance
+-   $L$ is the breeding cycle length
+
+Thus, GS contribuites in two terms of the breeder's equation. The terms are $r$ and $L$.
+
+Genomic selection can be broadly structured into four key stages, [@Escamilla2025], encompassing:
+
+#### **1. Training population design**
+
+#### **2. Model building**
+
+#### **3. Prediction**
+
+#### **4. Selection**
+
+## **1. Training population design**
+
+In this stage, breeders identify the individuals to be included in model development.
+
+Historical datasets, integrating both phenotypic and genotypic information, can serve as the foundation for the initial training population.
+
+#### Downloading data
+
+```{r}
+remove(list = ls())
+
+setwd("C:/GitHub_Folders/GeneticTools/")
+
+library(bWGR)
+library(dplyr)
+library(plotly)
+library(ggplot2)
+
+load("dataGS.RData") # Loading data
+
+head(Pheno)
+tail(Pheno)
+
+dim(Geno)
+Geno[1:10, 1:10]
+hist(Pheno$Trait1) # Continuous distribution
+```
+
+We are working with a training population composed of 300 genotypes, which includes both phenotypic and genotypic data. The genotypic dataset contains information from 3,000 molecular markers, specifically Single Nucleotide Polymorphisms (SNPs). This population will be used to train the model, which will then be applied to predict the performance of 200 unseen genotypes, for which only genotypic information is available.
+
+With access to genomic data, we can analyze the population structure and determine whether distinct subgroups exist. In maize, this is particularly important, as it allows us to identify and separate **heterotic groups**.
+
+```{r}
+pca <- prcomp(Geno)
+
+plot_ly(data = as.data.frame(pca$x),
+        x = ~PC1,
+        y = ~PC2,
+        z = ~PC3,
+        type = "scatter3d",
+        mode = "markers",
+        marker = list(size = 5))
+```
+
+### Organinzing training population
+
+```{r}
+geno_trn <- Geno[1:300,]   # Traning pop
+geno_tst <- Geno[301:500,] # Unseen pop
+
+pheno_trn <- Pheno[1:300,]   # Training pop
+pheno_tst <- Pheno[301:500,] # Unseen pop
+```
+
+## **2. Model building**
+
+Genomic prediction models exist with the primary objective of increasing prediction accuracy by capturing as much of the phenotypic variance as possible [@Meuwissen2001, @delosCampos2013]
+
+Genotypic and phenotypic information from the training population are the input data for building a prediction model.
+
+To compare between models, **cross-validation** is conducted with the data from the training population.
+
+In this case, we are predicting different genotypes within the same environment, which corresponds to the **CV1 scenario**, as presented in the slides.
+
+The correlation between predicted genotypic values and observed phenotypes measures the model performance.
+
+The most straighfoward models are mixed models to **estimate marker effects (RRBLUP)** or **leverage a genomic relationship matrix (GBLUP)**.
+
+#### **RR-BLUP**
+
+$$
+Y = X\beta + W\alpha+e
+$$
+
+-   $Y$ = phenotypic values
+
+-   $\beta$ = Fixed effects
+
+-   $\alpha$ = Random effects, with $\alpha \sim N(0, I_a\sigma^2_a)$
+
+-   $e$ = Random error, with $e \sim N(0, I_e\sigma^2_e)$
+
+-   $X$ and $Z$ = Design and incidence matrices
+
+In this case, $\alpha$ is the allele substitution effects, and $W$ is the genomic information (SNP array).
+
+The simplest R function that can be used for Genomic Selection is `wgr()` from the **bWGR** package [@Xavier2020]. This function streamlines the process, as we only need to provide the phenotypic data (`y`) and the genotypic matrix (`X`). The remaining terms of the equation, as shown above, are automatically computed within the function.
+
+```{r}
+Model = wgr(y = pheno_trn$Trait1,   
+            X = as.matrix(geno_trn))
+```
+
+## **3. Prediction**
+
+At this stage, the trained prediction model is combined with the genomic data of the unseen candidates. This integration allows the model to generate predicted genotypic values for the candidate population.
+
+```{r}
+plot(Model$hat, pheno_trn$Trait1) # Blups
+```
+
+An important metric, is to know the model accuracy
+
+```{r}
+cor(Model$hat, pheno_trn$Trait1) # Model accuracy
+```
+
+```{r}
+All_effect <- Model$b # Allele substitution effects for all markers
+head(All_effect)
+```
+
+In R, when we want to multiply matrices, we use the operator `%*%`.
+
+```{r}
+## Predicting
+GEBV <- geno_tst %*% All_effect
+```
+
+## **4. Selection**
+
+Predicted genotypic values can be used directly as a selection metric, and **individuals with the best values are selected** to be advanced to the next generation or **used as parents** of future breeding population. Alternatively, individuals with undesirable predicted values are removed from consideration. Other selection metrics exist to focus on parents selection and long-term response.
+
+```{r}
+GEBV <- as.data.frame(GEBV)
+df <- data.frame(id = rownames(GEBV),
+                 GEBV = GEBV$V1)
+
+df <- df %>% arrange(desc(GEBV)); 
+gen.sel <- df[1:20,]; gen.sel
+```
+
+As expected, selection leads to an increase in the genetic mean across generations, which can be clearly visualized in the graph below.
+
+```{r fig.height=7, warning=FALSE, paged.print=FALSE}
+df$group <- "Non-selected"
+gen.sel$group <- "Selected"
+
+df_all <- rbind(df, gen.sel)
+
+ggplot(df_all, aes(x = GEBV, color = group, fill = group)) +
+  geom_histogram(alpha = 0.4, bins = 20, position = "identity") +
+  geom_density(aes(y = ..count..), size = 1, alpha = 0.4) +
+  labs(x = "GEBV", y = "Density") +
+  scale_color_manual(values = c("Non-selected" = "red", "Selected" = "blue")) +
+  scale_fill_manual(values = c("Non-selected" = "red", "Selected" = "blue"))+
+  theme(legend.title = element_blank())
+```
+
+## Reference
